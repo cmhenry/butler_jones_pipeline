@@ -1,10 +1,10 @@
 
-def analyze_pipeline(model=None, folds=10) : 
-	X, y, X_test = load() # Load model with own load function
+def analyze_pipeline(model, X, y, folds=10) : 
+	# X, y, X_test = load() # Load model with own load function
 	y = y.values # Reload as numpy
 	X = X.values # Reload as numpy
-	if not model: # If no model is specified, call load_model function
-    	model = load_model()
+	# if not model: # If no model is specified, call load_model function
+ #    	model = load_model()
 
 	# Manual x-validation to accumulate actual
 	cv_skf = StratifiedKFold(y, n_folds=folds, shuffle=False, random_state=42)

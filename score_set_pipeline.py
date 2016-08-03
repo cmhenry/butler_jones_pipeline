@@ -1,6 +1,7 @@
 
 import sys # System level operations
 import os # OS operations
+from sets import Set
 import re # Regular expressions
 import xlrd # Reading Excel documents
 import glob # Filename pattern matching
@@ -13,10 +14,14 @@ import sklearn # Sci-kit learn for machine learning
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.cross_validation import KFold
 import sklearn.cross_validation as cv
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import Pipeline
 from sklearn import svm
+from sklearn import multiclass
+from sklearn.metrics import roc_auc_score
+from sklearn.preprocessing import label_binarize
 
 train_dir = sys.argv[1]
 
@@ -99,18 +104,6 @@ def split_corpus(train_set) :
 	# print len(training)
 	return corpus, training
 
-def test_area(train_set, classifier) : 
-	y = [s.score for s in train_set]
-	X = [s.text for s in train_set]
-	skf = cv.StratifiedKFold([s.score for s in train_set], n_folds=3, shuffle=True)
-	print skf
-	for train_i, val_i in skf : 
-		X_train, X_val = X[train_i], X[val_i]
-		y_train, y_val = y[train_i], y[val_i]
-
-		classifier.fit(X_train, y_train)
-		y_pprobs = svm
-
 def sample_training_set(train_set) : 
 	training = []
 	testing = []
@@ -125,7 +118,7 @@ def import_corpus(corpus_dir) :
 	corpus = sklearn.datasets.load_files(corpus_dir)
 	return corpus
 
-def feature_text(train_set,sample_set) :
+def feature_text(train_set) :
 	# Extract counts
 	# print train_set
 	count_vect = CountVectorizer()
@@ -141,12 +134,12 @@ def feature_text(train_set,sample_set) :
 	# tfidf_vectorizer = TfidfVectorizer(sublinear_tf=True, max_df=0.5, stop_words='english')
 	# train_vector = tfidf_vectorizer.fit_transform([s.text for s in train_set])
 
-	sample_counts = count_vect.transform([s.text for s in sample_set])
-	sample_tfidf = tfidf_transformer.transform(sample_counts)
+	# sample_counts = count_vect.transform([s.text for s in sample_set])
+	# sample_tfidf = tfidf_transformer.transform(sample_counts)
 	# sample_vector = tfidf_vectorizer.fit_transform([s.text for s in sample_set])
 	# sample_tf = tf_transformer.transform(sample_counts)
 	# print train_tfidf
-	return train_tfidf,sample_tfidf
+	return train_tfidf
 def test_text(sample_set) :
 	# Extract counts
 	# print train_set
@@ -162,17 +155,95 @@ def test_text(sample_set) :
 	# print train_tfidf
 	return sample_tfidf
 
-def train_text(sample_set, train_tfidf, test_set, test_feature_set) : 
+def train_text(sample_set, train_tfidf) : 
 	# Train classifier
-	classifier = svm.SVC(tol=0.9).fit(train_tfidf, [s.score for s in sample_set])
+	sample_set = [s.score for s in sample_set]
+	sample_set = label_binarize(sample_set, classes=[0, 1, 2, 3, 4])
+	# BINARIZE HERE
+	# print sample_set
+	# print sample_set.shape
+	# print train_tfidf.shape
+	# classifier = MultinomialNB().fit(train_tfidf, sample_set)
+	classifier = multiclass.OneVsRestClassifier(svm.SVC(kernel='linear',probability=True)).fit(train_tfidf, sample_set)
+	# RETRAIN WITH OnevsRest classifier -- MULTILABEL -- SEE bookmarks
 	# classifier = MultinomialNB(fit_prior=True).fit(train_tfidf, [s.score for s in sample_set])
 	print classifier
 	predicted = classifier.predict(train_tfidf)
-	x = [s.score for s in sample_set]
-	print x
-	print predicted
-	print np.mean(predicted == x)
-	# return classifier
+	# x = [s.score for s in sample_set]
+	# print x
+	# np.set_printoptions(threshold=np.inf)
+	# print x
+	# print np.mean(predicted == x)
+	return classifier
+
+
+def analyze_pipeline(model, X, y, folds=3) : 
+	# X, y, X_test = load() # Load model with own load function
+	# y = y # Reload as numpy
+	# y = np.array([Y.score for Y in y])
+	y = [Y.score for Y in y]
+	y = np.array(y)
+	print y.shape
+	y = label_binarize(y, classes=[0, 1, 2, 3, 4])
+	print y.shape
+	# y = label_binarize(y, classes=[0, 1, 2, 3, 4])
+	# BINARIZE HERE
+	# X = np.array # Reload as numpy
+	# if not model: # If no model is specified, call load_model function
+ #    	model = load_model()
+
+	# Manual x-validation to accumulate actual
+	# print y.shape
+	cv_skf = KFold(5, n_folds=folds, shuffle=True, random_state=123)
+	print cv_skf
+	# y = np.array(y)
+	# Creates stratified test set from training set
+	scores = [] # Actual scores
+	conf_mat = np.zeros((2, 2)) # Binary classification, confusion matrix
+	false_pos = Set() # False positive set
+	false_neg = Set() # Falso negative set
+
+	for train_i, val_i in cv_skf:
+	    X_train, X_val = X[train_i], X[val_i]
+	    y_train, y_val = y[train_i], y[val_i]
+
+	    print "Fitting fold..."
+	    model.fit(X_train, y_train)
+
+	    print "Predicting fold..."
+
+	    y_pprobs = model.predict_proba(X_val)       # Predicted probabilities
+	    y_plabs = np.squeeze(model.predict(X_val))  # Predicted class labels
+	    print y_val
+	    scores.append(roc_auc_score(y_val, y_pprobs[:, 1]))
+	    confusion = confusion_matrix(y_val, y_plabs)
+	    conf_mat += confusion
+
+	    # Collect indices of false positive and negatives
+	    fp_i = np.where((y_plabs==1) & (y_val==0))[0]
+	    fn_i = np.where((y_plabs==0) & (y_val==1))[0]
+	    false_pos.update(val_i[fp_i])
+	    false_neg.update(val_i[fn_i])
+
+	    print "Fold score: ", scores[-1]
+	    print "Fold CM: \n", confusion
+
+	print "\nMean score: %0.2f (+/- %0.2f)" % (np.mean(scores), np.std(scores) * 2)
+	conf_mat /= folds
+	print "Mean CM: \n", conf_mat
+	print "\nMean classification measures: \n"
+	pprint(class_report(conf_mat))
+	return scores, conf_mat, {'fp': sorted(false_pos), 'fn': sorted(false_neg)}
+
+def class_report(conf_mat):
+    tp, fp, fn, tn = conf_mat.flatten()
+    measures = {}
+    measures['accuracy'] = (tp + tn) / (tp + fp + fn + tn)
+    measures['specificity'] = tn / (tn + fp)        # (true negative rate)
+    measures['sensitivity'] = tp / (tp + fn)        # (recall, true positive rate)
+    measures['precision'] = tp / (tp + fp)
+    measures['f1score'] = 2*tp / (2*tp + fp + fn)
+    return measures
 
 # def test_prediction(clf, test_set, test_feature_set) : 
 # 	predicted = clf.predict(test_feature_set)
@@ -184,14 +255,16 @@ def train_text(sample_set, train_tfidf, test_set, test_feature_set) :
 ugly_corpus = import_text(train_dir)
 # y = import_corpus(corpus_dir)
 corpus, training_set = split_corpus(ugly_corpus)
-test_area(training_set)
 #sample_set, test_set = sample_training_set(training_set)
 
-#sample_feature_set, test_feature_set = feature_text(sample_set,test_set)
+# sample_feature_set, test_feature_set = feature_text(sample_set,test_set)
+sample_feature_set = feature_text(training_set)
 #test_feature_set = test_text(test_set)
 
 # clf = 
-#train_text(sample_set,sample_feature_set,test_set,test_feature_set)
+model = train_text(training_set,sample_feature_set)
+
+analyze_pipeline(model,sample_feature_set,training_set)
 
 #test_prediction(clf,test_set,test_feature_set)
 

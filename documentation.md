@@ -26,10 +26,23 @@ The project accepts a sinle user input, `train_dir`, which indicates the directo
 ```python
 def import_text(file_dir) : 
 	for root,dirs,files in os.walk(file_dir) : 
+```
+
+The above `for` loop iterates over the file directory. Thus, reports and coding documents can be nested inside additional folders without problem.
+
+
+```python
 		# Filter file lists by file type
 		reports = [ fi for fi in files if fi.endswith(".txt") ]
 		key_file = [ fi for fi in files if fi.endswith(".xls") ]
-		
+```
+
+The corpus of human rights reports are expected to be in plaintext format (preferably in UTF-8 encoding), and to be the only plaintext formatted documents in the directory. Similarly, the coding document ought to be in Excel format, and the only Excel formatted document in the directory. 
+> Future development: the reliance on Excel formatted coding documents is a weakness for the unversalization of the pipeline project. Users ought to be able to specify the document format, structure, and content with some flexibility. Obviously there should be some expectation that the data follows a reasonable formatting pattern, but we ought to accept inputs from Stata, plaintext, csv, etc. -- common file formats used by social scientists.
+
+The following break-down of the digestion of the corpus and coding documents will illustrate why strictly constraining the input format was necessary for the baseline pilot project.
+
+```python		
 		# Create empty Numpy array with file list length
 		train_set = [] * len(reports)
 		train_set2 = [] * len(reports)

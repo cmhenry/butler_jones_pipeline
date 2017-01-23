@@ -19,7 +19,7 @@ class Score_Set(object) :
 
 The project accepts a sinle user input, `train_dir`, which indicates the directory containing both the corpus of reports and the human-coded training data. It also includes nine seperate functions.
 
-`import_text`
+#### import_text
 
 `import_text` imports the corpus of reports and the human coded training data. It accepts a single input, `file_dir`, expected to be a string corresponding to the user input `train_dir`. 
 

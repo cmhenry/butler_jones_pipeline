@@ -43,12 +43,10 @@ def TextConverter(file_dir) :
 
 		for fname in key_file : 
 			path = os.path.join(root,fname)
-			key_df = pd.read_excel(path, sheetname='Sheet1')
+			key_df = pd.read_excel(path, sheetname='Sheet1', converters={'year':str})
 
-		print df.dtypes
-		print key_df.dtypes
 		df = pd.merge(key_df, df, on = ['country','year'], how='left')
-		# print df
+		print df
 
 def TextImporter(file) : 
 	'''
